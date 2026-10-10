@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#111827">
+<meta name="description" content="Gestion simple de mon budget mensuel">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Mon Budget</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f7fb;color:#172033}
+header{background:#111827;color:white;padding:22px 20px;position:sticky;top:0;z-index:10;box-shadow:0 4px 18px #0001}
+.header-inner{max-width:1100px;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:16px}
+h1,h2,h3,p{margin-top:0}.brand{font-size:24px;font-weight:800}.month{display:flex;gap:8px;align-items:center}
+select,input,button{font:inherit;border-radius:10px;border:1px solid #d8deea;padding:10px 12px}
+select{background:white}button{cursor:pointer;border:0;background:#2563eb;color:white;font-weight:700}
+button.secondary{background:#e8edf6;color:#172033}.danger{background:#dc2626!important}
+main{max-width:1100px;margin:24px auto;padding:0 16px}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+.card{background:white;border-radius:16px;padding:18px;box-shadow:0 5px 20px #18213a0b;border:1px solid #e8ecf3}
+.card .label{font-size:13px;color:#6b7280}.value{font-size:27px;font-weight:800;margin-top:7px}.positive{color:#15803d}.negative{color:#dc2626}
+.grid{display:grid;grid-template-columns:1.15fr .85fr;gap:18px}.panel{background:white;border-radius:16px;padding:20px;box-shadow:0 5px 20px #18213a0b;border:1px solid #e8ecf3;margin-bottom:18px}
+.panel h2{font-size:18px;margin-bottom:16px}.form{display:grid;grid-template-columns:1.4fr 1fr 1fr auto;gap:10px}
+.budget-row{padding:13px 0;border-bottom:1px solid #edf0f5}.budget-row:last-child{border-bottom:0}
+.rowtop{display:flex;justify-content:space-between;gap:10px;margin-bottom:7px}.cat{font-weight:750}.small{font-size:13px;color:#6b7280}
+.bar{height:9px;background:#edf1f7;border-radius:99px;overflow:hidden}.fill{height:100%;background:#2563eb;border-radius:99px}.fill.over{background:#dc2626}
+canvas{display:block;width:100%;max-width:360px;margin:8px auto}
+.legend{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.legend div{font-size:13px;display:flex;align-items:center;gap:7px}.dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px;border-bottom:1px solid #edf0f5;font-size:14px}th{color:#6b7280;font-size:12px}
+.empty{text-align:center;color:#6b7280;padding:25px}.settings{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.actions{display:flex;gap:8px;flex-wrap:wrap}.hint{font-size:12px;color:#6b7280;margin-top:8px}
+@media(max-width:800px){.cards{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.form{grid-template-columns:1fr 1fr}.form button{grid-column:span 2}}
+@media(max-width:480px){.cards{grid-template-columns:1fr 1fr}.card{padding:13px}.value{font-size:21px}.settings{grid-template-columns:1fr}.header-inner{align-items:flex-start;flex-direction:column}}
+</style>
+</head>
+<body>
+<header><div class="header-inner">
+<div class="brand">💰 Mon Budget</div>
+<div class="month"><span>Mois</span><select id="monthSelect"></select><button id="newMonth" class="secondary">Nouveau mois</button></div>
+</div></header>
+
+<main>
+<section class="cards">
+<div class="card"><div class="label">Revenus</div><div id="income" class="value positive">0 €</div></div>
+<div class="card"><div class="label">Dépensé</div><div id="spent" class="value negative">0 €</div></div>
+<div class="card"><div class="label">Reste à vivre</div><div id="remaining" class="value positive">0 €</div></div>
+<div class="card"><div class="label">Budget prévu</div><div id="planned" class="value">0 €</div></div>
+</section>
+
+<div class="grid">
+<div>
+<section class="panel">
+<h2>💶 Revenus du mois</h2>
+<div class="settings">
+<label>Bourse fixe (€)<input id="scholarship" type="number" min="0" step="0.01"></label>
+<label>Arbitrage / revenu variable (€)<input id="variable" type="number" min="0" step="0.01"></label>
+</div>
+<p class="hint">L'arbitrage peut être différent chaque mois.</p>
+</section>
+
+<section class="panel">
+<h2>🎯 Mes catégories</h2>
+<div id="budgetList"></div>
+</section>
+
+<section class="panel">
+<h2>➕ Ajouter une dépense</h2>
+<div class="form">
+<select id="expenseCategory"></select>
+<input id="expenseAmount" type="number" min="0.01" step="0.01" placeholder="Montant (€)">
+<input id="expenseNote" type="text" placeholder="Description (optionnel)">
+<button id="addExpense">Ajouter</button>
+</div>
+</section>
+
+<section class="panel">
+<h2>🧾 Historique</h2>
+<div id="history"></div>
+</section>
+</div>
+
+<div>
+<section class="panel">
+<h2>📊 Répartition des dépenses</h2>
+<canvas id="pie" width="360" height="360"></canvas>
+<div id="legend" class="legend"></div>
+</section>
+
+<section class="panel">
+<h2>⚙️ Budget prévu</h2>
+<div id="settingsList"></div>
+<p class="hint">Modifie les montants puis clique sur « Enregistrer ».</p>
+</section>
+
+<section class="panel">
+<h2>💾 Données</h2>
+<div class="actions">
+<button id="export">Exporter JSON</button>
+<button id="importBtn" class="secondary">Importer JSON</button>
+<button id="resetMonth" class="danger">Réinitialiser le mois</button>
+</div>
+<input id="fileInput" type="file" accept=".json" style="display:none">
+</section>
+</div>
+</div>
+</main>
+
+<script>
+const DEFAULT_CATS = [
+  {name:"Alimentation", budget:150},
+  {name:"Épargne", budget:170},
+  {name:"Paiement de licence", budget:106},
+  {name:"Shopping", budget:88}
+];
+const COLORS=["#2563eb","#16a34a","#f59e0b","#db2777","#7c3aed","#0891b2","#ea580c","#64748b"];
+
+let db = JSON.parse(localStorage.getItem("budgetDB") || "null") || {months:{}};
+let current = new Date().toISOString().slice(0,7);
+
+function money(n){return new Intl.NumberFormat("fr-FR",{style:"currency",currency:"EUR"}).format(Number(n)||0)}
+function monthLabel(key){let [y,m]=key.split("-");return new Date(y,m-1,1).toLocaleDateString("fr-FR",{month:"long",year:"numeric"})}
+function save(){localStorage.setItem("budgetDB",JSON.stringify(db))}
+function createMonth(key){
+  if(!db.months[key]) db.months[key]={
+    scholarship:521, variable:0,
+    categories: DEFAULT_CATS.map(x=>({name:x.name,budget:x.budget})),
+    expenses:[]
+  };
+}
+createMonth(current);
+
+function getM(){createMonth(current);return db.months[current]}
+
+function renderMonthSelect(){
+  const s=document.getElementById("monthSelect");
+  let keys=Object.keys(db.months).sort().reverse();
+  if(!keys.includes(current)) keys.unshift(current);
+  s.innerHTML=keys.map(k=>`<option value="${k}">${monthLabel(k)}</option>`).join("");
+  s.value=current;
+}
+function render(){
+  const m=getM();
+  document.getElementById("scholarship").value=m.scholarship;
+  document.getElementById("variable").value=m.variable;
+  const totalIncome=Number(m.scholarship)+Number(m.variable);
+  const spent=m.expenses.reduce((a,e)=>a+Number(e.amount),0);
+  const planned=m.categories.reduce((a,c)=>a+Number(c.budget),0);
+  document.getElementById("income").textContent=money(totalIncome);
+  document.getElementById("spent").textContent=money(spent);
+  const rem=totalIncome-spent;
+  const remEl=document.getElementById("remaining"); remEl.textContent=money(rem); remEl.className="value "+(rem>=0?"positive":"negative");
+  document.getElementById("planned").textContent=money(planned);
+
+  document.getElementById("budgetList").innerHTML=m.categories.map((c,i)=>{
+    const used=m.expenses.filter(e=>e.category===c.name).reduce((a,e)=>a+Number(e.amount),0);
+    const pct=c.budget>0?Math.min(100,used/c.budget*100):0;
+    return `<div class="budget-row"><div class="rowtop"><span class="cat">${c.name}</span><span><b>${money(c.budget-used)}</b> restant <span class="small">/ ${money(c.budget)}</span></span></div><div class="bar"><div class="fill ${used>c.budget?'over':''}" style="width:${pct}%"></div></div><div class="small">${money(used)} dépensé · ${Math.round(used/(c.budget||1)*100)}%</div></div>`
+  }).join("");
+
+  document.getElementById("expenseCategory").innerHTML=m.categories.map(c=>`<option>${c.name}</option>`).join("");
+
+  document.getElementById("settingsList").innerHTML=m.categories.map((c,i)=>`<div class="settings" style="margin-bottom:8px"><input value="${c.name}" data-name="${i}" class="catName"><input type="number" min="0" step="0.01" value="${c.budget}" data-budget="${i}" class="catBudget"></div>`).join("")+
+  `<button id="saveSettings">Enregistrer les budgets</button><button id="addCategory" class="secondary" style="margin-left:8px">+ Catégorie</button>`;
+
+  document.getElementById("history").innerHTML=m.expenses.length?`<table><thead><tr><th>Date</th><th>Catégorie</th><th>Description</th><th>Montant</th><th></th></tr></thead><tbody>${[...m.expenses].reverse().map(e=>`<tr><td>${e.date}</td><td>${e.category}</td><td>${escapeHtml(e.note||"—")}</td><td><b>${money(e.amount)}</b></td><td><button class="danger" onclick="deleteExpense('${e.id}')">×</button></td></tr>`).join("")}</tbody></table>`:`<div class="empty">Aucune dépense pour ce mois.</div>`;
+
+  drawPie(m);
+  document.getElementById("saveSettings").onclick=saveSettings;
+  document.getElementById("addCategory").onclick=()=>{m.categories.push({name:"Nouvelle catégorie",budget:0});save();render()};
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
+
+function drawPie(m){
+  const canvas=document.getElementById("pie"),ctx=canvas.getContext("2d"),w=canvas.width,h=canvas.height;
+  ctx.clearRect(0,0,w,h);
+  const vals=m.categories.map(c=>m.expenses.filter(e=>e.category===c.name).reduce((a,e)=>a+Number(e.amount),0));
+  const total=vals.reduce((a,b)=>a+b,0);
+  if(!total){ctx.fillStyle="#edf1f7";ctx.beginPath();ctx.arc(w/2,h/2,120,0,Math.PI*2);ctx.fill();ctx.fillStyle="#6b7280";ctx.font="16px system-ui";ctx.textAlign="center";ctx.fillText("Aucune dépense",w/2,h/2+5);document.getElementById("legend").innerHTML="";return}
+  let a=-Math.PI/2;
+  m.categories.forEach((c,i)=>{if(!vals[i])return;let b=a+vals[i]/total*Math.PI*2;ctx.beginPath();ctx.moveTo(w/2,h/2);ctx.arc(w/2,h/2,120,a,b);ctx.closePath();ctx.fillStyle=COLORS[i%COLORS.length];ctx.fill();a=b});
+  ctx.fillStyle="white";ctx.beginPath();ctx.arc(w/2,h/2,62,0,Math.PI*2);ctx.fill();
+  document.getElementById("legend").innerHTML=m.categories.map((c,i)=>vals[i]?`<div><span class="dot" style="background:${COLORS[i%COLORS.length]}"></span>${c.name}: <b>${money(vals[i])}</b></div>`:"").join("");
+}
+document.getElementById("addExpense").onclick=()=>{
+  const m=getM(), amount=Number(document.getElementById("expenseAmount").value), cat=document.getElementById("expenseCategory").value;
+  if(!amount||amount<=0)return alert("Entre un montant supérieur à 0.");
+  m.expenses.push({id:crypto.randomUUID(),date:new Date().toLocaleDateString("fr-FR"),category:cat,amount,note:document.getElementById("expenseNote").value.trim()});
+  document.getElementById("expenseAmount").value="";document.getElementById("expenseNote").value="";save();render();
+};
+window.deleteExpense=id=>{getM().expenses=getM().expenses.filter(e=>e.id!==id);save();render()};
+document.getElementById("scholarship").onchange=e=>{getM().scholarship=Number(e.target.value)||0;save();render()};
+document.getElementById("variable").onchange=e=>{getM().variable=Number(e.target.value)||0;save();render()};
+function saveSettings(){
+  const m=getM();m.categories=[...document.querySelectorAll(".catName")].map((el,i)=>({name:el.value.trim()||"Sans nom",budget:Number(document.querySelector(`[data-budget="${i}"]`).value)||0}));save();render();
+}
+document.getElementById("monthSelect").onchange=e=>{current=e.target.value;createMonth(current);render()};
+document.getElementById("newMonth").onclick=()=>{
+  const d=new Date(current+"-01");d.setMonth(d.getMonth()+1);current=d.toISOString().slice(0,7);createMonth(current);save();renderMonthSelect();render();
+};
+document.getElementById("resetMonth").onclick=()=>{if(confirm("Réinitialiser toutes les données de ce mois ?")){delete db.months[current];createMonth(current);save();render()}};
+document.getElementById("export").onclick=()=>{
+  const blob=new Blob([JSON.stringify(db,null,2)],{type:"application/json"}),a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);a.download="mon-budget-sauvegarde.json";a.click();URL.revokeObjectURL(a.href);
+};
+document.getElementById("importBtn").onclick=()=>document.getElementById("fileInput").click();
+document.getElementById("fileInput").onchange=e=>{
+  const file=e.target.files[0];if(!file)return;const r=new FileReader();
+  r.onload=()=>{try{const x=JSON.parse(r.result);if(!x.months)throw 0;db=x;createMonth(current);save();renderMonthSelect();render();alert("Import réussi.")}catch{alert("Fichier invalide.")}};
+  r.readAsText(file);
+};
+renderMonthSelect();render();
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js"));
+}
+</script>
+</body>
+</html>
